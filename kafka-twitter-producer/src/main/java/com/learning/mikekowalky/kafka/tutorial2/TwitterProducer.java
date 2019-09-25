@@ -1,4 +1,4 @@
-package com.learning.mikekowalsky.kafka.tutorial2;
+package com.learning.mikekowalky.kafka.tutorial2;
 
 import com.google.common.collect.Lists;
 import com.twitter.hbc.ClientBuilder;
@@ -29,7 +29,7 @@ public class TwitterProducer {
     private final String token = System.getenv("token");
     private final String secret = System.getenv("secret");
 
-    List<String> terms = Lists.newArrayList("bitcoin");
+    List<String> terms = Lists.newArrayList("bitcoin", "java", "javascript", "kafka");
 
 
     public TwitterProducer(){}
