@@ -12,6 +12,8 @@ import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.serialization.StringDeserializer;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.RequestOptions;
@@ -98,41 +100,45 @@ public class ElasticSearchConsumer {
         while(true) {
             ConsumerRecords<String, String> records = consumer.poll(Duration.ofMillis(100));
 
-            logger.info("Received " + records.count() + " messages.");
+            Integer recordCount = records.count();
+            logger.info("Received " + recordCount + " messages.");
+
+            BulkRequest bulkRequest = new BulkRequest();
+
             for(ConsumerRecord<String, String> record : records){
 
                 // 2 strategies
                 // 1. kafka generic id
                 // String id = record.topic() + "_" + record.partition() + "_" + record.offset();
 
-                // 2. tweet specific id
-                String id = extractIdFromTweet(record.value());
+                try{
+                    // 2. tweet specific id
+                    String id = extractIdFromTweet(record.value());
 
-                IndexRequest indexRequest = new IndexRequest(
-                        "twitter",
-                        "tweets",
-                        id //make sure that consumet is idempotent
-                ).source(record.value(), XContentType.JSON);
+                    IndexRequest indexRequest = new IndexRequest(
+                            "twitter",
+                            "tweets",
+                            id //make sure that consumet is idempotent
+                    ).source(record.value(), XContentType.JSON);
 
-                IndexResponse indexResponse = client.index(indexRequest, RequestOptions.DEFAULT);
-                logger.info(indexResponse.getId());
+                    bulkRequest.add(indexRequest);
+                } catch(NullPointerException e){
+                    logger.warn("skipping bad data: " + record.value());
+                }
+            }
+
+            if(recordCount > 0){
+                BulkResponse bulkItemResponses = client.bulk(bulkRequest, RequestOptions.DEFAULT);
+
+                logger.info("Committing offset ...");
+                consumer.commitSync();
+                logger.info("Offsets have been committed.");
 
                 try {
-                    Thread.sleep(10);
+                    Thread.sleep(1000);
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
-
-            }
-
-            logger.info("Committing offset ...");
-            consumer.commitSync();
-            logger.info("Offsets have been committed.");
-
-            try {
-                Thread.sleep(1000);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
             }
         }
 
